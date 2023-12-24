@@ -7,6 +7,7 @@ import {
   Code,
   Link,
   LinkOff,
+  Image,
   LooksOne,
   LooksTwo,
   Looks3,
@@ -17,6 +18,7 @@ import {
   FormatAlignCenter,
   FormatAlignRight,
   FormatAlignJustify,
+  Delete,
 } from "@mui/icons-material";
 import { cn } from "@/utils";
 
@@ -28,6 +30,7 @@ export const IconMap = {
   code: Code,
   link: Link,
   link_off: LinkOff,
+  image: Image,
   looks_one: LooksOne,
   looks_two: LooksTwo,
   looks3: Looks3,
@@ -38,6 +41,7 @@ export const IconMap = {
   format_align_center: FormatAlignCenter,
   format_align_right: FormatAlignRight,
   format_align_justify: FormatAlignJustify,
+  delete: Delete,
 };
 
 type ButtonProps = ComponentPropsWithoutRef<"span"> & {
@@ -52,6 +56,7 @@ export const Button = React.forwardRef(
     />
   )
 );
+Button.displayName = "Button";
 
 type IconProps = ComponentPropsWithoutRef<"span"> & {
   iconName: keyof typeof IconMap;
@@ -63,6 +68,7 @@ export const Icon = React.forwardRef(
     </span>
   )
 );
+Icon.displayName = "Icon";
 
 export const Menu = React.forwardRef(
   (
@@ -70,6 +76,7 @@ export const Menu = React.forwardRef(
     ref: Ref<HTMLDivElement>
   ) => <div {...props} data-test-id="menu" ref={ref} />
 );
+Menu.displayName = "Menu";
 
 export const Toolbar = React.forwardRef(
   (
@@ -77,3 +84,4 @@ export const Toolbar = React.forwardRef(
     ref: Ref<HTMLDivElement>
   ) => <Menu {...props} ref={ref} />
 );
+Toolbar.displayName = "Toolbar";

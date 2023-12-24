@@ -4,9 +4,19 @@ import React, {
   ComponentPropsWithRef,
   ReactNode,
 } from "react";
+import imageExtensions from "image-extensions";
 import isHotkey, { isKeyHotkey } from "is-hotkey";
 import isUrl from "is-url";
-import { Editable, withReact, useSlate, Slate, useSelected } from "slate-react";
+import {
+  Editable,
+  withReact,
+  useSlate,
+  useSlateStatic,
+  Slate,
+  useSelected,
+  useFocused,
+  ReactEditor,
+} from "slate-react";
 import {
   Editor,
   Transforms,
@@ -18,7 +28,7 @@ import {
 } from "slate";
 import { withHistory } from "slate-history";
 import { cn } from "@/utils";
-import { LinkElement } from "@/pages/admin/types";
+import { LinkElement, ImageElement } from "@/pages/admin/types";
 
 import { Button, Icon, Toolbar, IconMap } from "../components";
 
@@ -43,7 +53,7 @@ const RichTextExample = () => {
     []
   );
   const editor = useMemo(
-    () => withInlines(withHistory(withReact(createEditor()))),
+    () => withImages(withInlines(withHistory(withReact(createEditor())))),
     []
   );
 
@@ -57,6 +67,7 @@ const RichTextExample = () => {
         <MarkButton format="code" iconName="code" />
         <AddLinkButton />
         <RemoveLinkButton />
+        <InsertImageButton />
         <BlockButton format="heading-one" iconName="looks_one" />
         <BlockButton format="heading-two" iconName="looks_two" />
         <BlockButton format="heading-three" iconName="looks3" />
@@ -246,6 +257,12 @@ const Element = ({
         <LinkComponent {...attributes} element={element}>
           {children}
         </LinkComponent>
+      );
+    case "image":
+      return (
+        <Image {...attributes} element={element}>
+          {children}
+        </Image>
       );
     default:
       return (
@@ -468,6 +485,107 @@ const RemoveLinkButton = () => {
       <Icon iconName="link_off" />
     </Button>
   );
+};
+
+const withImages = (editor: Editor) => {
+  const { insertData, isVoid } = editor;
+
+  editor.isVoid = (element: SlateElement) => {
+    return element.type === "image" ? true : isVoid(element);
+  };
+
+  editor.insertData = (data) => {
+    const text = data.getData("text/plain");
+    const { files } = data;
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const reader = new FileReader();
+        const [mime] = file.type.split("/");
+
+        if (mime === "image") {
+          reader.addEventListener("load", () => {
+            const url = reader.result as string;
+            insertImage(editor, url);
+          });
+
+          reader.readAsDataURL(file);
+        }
+      }
+    } else if (isImageUrl(text)) {
+      insertImage(editor, text);
+    } else {
+      insertData(data);
+    }
+  };
+
+  return editor;
+};
+
+const insertImage = (editor: Editor, url: string) => {
+  const text = { text: "" };
+  const image: ImageElement = { type: "image", url, children: [text] };
+  Transforms.insertNodes(editor, image);
+};
+
+const Image = ({
+  attributes,
+  children,
+  element,
+}: {
+  attributes: any;
+  children: ReactNode;
+  element: ImageElement;
+}) => {
+  const editor = useSlateStatic();
+  const path = ReactEditor.findPath(editor, element);
+
+  const focused = useFocused();
+  return (
+    <div {...attributes}>
+      {children}
+      <div contentEditable={false} className="relative">
+        <img src={element.url} className={cn("block max-w-full max-h-80")} />
+        <Button
+          active
+          onClick={() => Transforms.removeNodes(editor, { at: path })}
+          className={cn(
+            "absolute bg-white t-4 l-4",
+            focused ? "inline" : "hidden"
+          )}
+        >
+          <Icon iconName="delete" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const InsertImageButton = () => {
+  const editor = useSlateStatic();
+  return (
+    <Button
+      onMouseDown={(event) => {
+        event.preventDefault();
+        const url = window.prompt("Enter the URL of the image:");
+        if (url && !isImageUrl(url)) {
+          alert("URL is not an image");
+          return;
+        }
+        url && insertImage(editor, url);
+      }}
+    >
+      <Icon iconName="image" />
+    </Button>
+  );
+};
+
+const isImageUrl = (url: string) => {
+  if (!url) return false;
+  if (!isUrl(url)) return false;
+  const ext = new URL(url).pathname.split(".").pop();
+  if (ext === undefined) return false;
+  return imageExtensions.includes(ext);
 };
 
 const initialValue: Descendant[] = [

@@ -50,7 +50,12 @@ export type LinkElement = {
   align?: Align;
   children: CustomText[];
 };
-// type ImageElement = { type: "image"; url: string; align?: Align; children: CustomText[] };
+export type ImageElement = {
+  type: "image";
+  url: string;
+  align?: Align;
+  children: CustomText[];
+};
 
 type FormattedText = {
   text: string;
@@ -71,7 +76,8 @@ type CustomElement =
   | NumberedListElement
   | ListItemElement
   | BlockQuoteElement
-  | LinkElement;
+  | LinkElement
+  | ImageElement;
 type CustomText = FormattedText;
 
 declare module "slate" {

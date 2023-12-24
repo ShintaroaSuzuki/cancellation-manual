@@ -19,6 +19,11 @@ type HeadingTwoElement = {
   align?: Align;
   children: CustomText[];
 };
+type HeadingThreeElement = {
+  type: "heading-three";
+  align?: Align;
+  children: CustomText[];
+};
 type BulletedListElement = {
   type: "bulleted-list";
   align?: Align;
@@ -47,7 +52,7 @@ type FormattedText = {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
-  // strikethrough?: boolean;
+  strikethrough?: boolean;
   code?: boolean;
 };
 
@@ -56,6 +61,7 @@ type CustomElement =
   | ParagraphElement
   | HeadingOneElement
   | HeadingTwoElement
+  | HeadingThreeElement
   | BulletedListElement
   | NumberedListElement
   | ListItemElement

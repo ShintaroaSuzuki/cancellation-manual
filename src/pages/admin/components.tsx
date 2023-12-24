@@ -1,12 +1,13 @@
-import React, { ReactNode, Ref, PropsWithChildren, createElement } from "react";
-import ReactDOM from "react-dom";
+import React, { Ref, ComponentPropsWithoutRef, createElement } from "react";
 import {
   FormatBold,
   FormatItalic,
   FormatUnderlined,
+  FormatStrikethrough,
   Code,
   LooksOne,
   LooksTwo,
+  Looks3,
   FormatQuote,
   FormatListNumbered,
   FormatListBulleted,
@@ -21,9 +22,11 @@ export const IconMap = {
   format_bold: FormatBold,
   format_italic: FormatItalic,
   format_underlined: FormatUnderlined,
+  format_strikethrough: FormatStrikethrough,
   code: Code,
   looks_one: LooksOne,
   looks_two: LooksTwo,
+  looks3: Looks3,
   format_quote: FormatQuote,
   format_list_numbered: FormatListNumbered,
   format_list_bulleted: FormatListBulleted,
@@ -33,27 +36,11 @@ export const IconMap = {
   format_align_justify: FormatAlignJustify,
 };
 
-interface BaseProps {
-  className: string;
-  [key: string]: unknown;
-}
-type OrNull<T> = T | null;
-
+type ButtonProps = ComponentPropsWithoutRef<"span"> & {
+  active?: boolean;
+};
 export const Button = React.forwardRef(
-  (
-    {
-      className,
-      active,
-      reversed,
-      ...props
-    }: PropsWithChildren<
-      {
-        active: boolean;
-        reversed: boolean;
-      } & BaseProps
-    >,
-    ref: Ref<OrNull<HTMLSpanElement>>
-  ) => (
+  ({ className, active, ...props }: ButtonProps, ref: Ref<HTMLSpanElement>) => (
     <span
       {...props}
       className={cn("text-slate-300", active && "text-slate-800", className)}
@@ -62,66 +49,27 @@ export const Button = React.forwardRef(
   )
 );
 
-export const EditorValue = React.forwardRef(
-  (
-    {
-      className,
-      value,
-      ...props
-    }: PropsWithChildren<
-      {
-        value: any;
-      } & BaseProps
-    >,
-    ref: Ref<OrNull<null>>
-  ) => {
-    const textLines = value.document.nodes
-      .map((node) => node.text)
-      .toArray()
-      .join("\n");
-    return (
-      <div ref={ref} {...props}>
-        <div>Slate's value as text</div>
-        <div>{textLines}</div>
-      </div>
-    );
-  }
-);
-
+type IconProps = ComponentPropsWithoutRef<"span"> & {
+  iconName: keyof typeof IconMap;
+};
 export const Icon = React.forwardRef(
-  (
-    { className, ...props }: PropsWithChildren<BaseProps>,
-    ref: Ref<OrNull<HTMLSpanElement>>
-  ) => (
+  ({ className, iconName, ...props }: IconProps, ref: Ref<HTMLSpanElement>) => (
     <span {...props} ref={ref}>
-      {createElement(IconMap[props.iconName])}
+      {createElement(IconMap[iconName])}
     </span>
   )
 );
 
-export const Instruction = React.forwardRef(
-  (
-    { className, ...props }: PropsWithChildren<BaseProps>,
-    ref: Ref<OrNull<HTMLDivElement>>
-  ) => <div {...props} ref={ref} />
-);
-
 export const Menu = React.forwardRef(
   (
-    { className, ...props }: PropsWithChildren<BaseProps>,
-    ref: Ref<OrNull<HTMLDivElement>>
+    { className, ...props }: ComponentPropsWithoutRef<"div">,
+    ref: Ref<HTMLDivElement>
   ) => <div {...props} data-test-id="menu" ref={ref} />
 );
 
-export const Portal = ({ children }: { children?: ReactNode }) => {
-  return typeof document === "object"
-    ? ReactDOM.createPortal(children, document.body)
-    : null;
-};
-
 export const Toolbar = React.forwardRef(
   (
-    { className, ...props }: PropsWithChildren<BaseProps>,
-    ref: Ref<OrNull<HTMLDivElement>>
+    { className, ...props }: ComponentPropsWithoutRef<typeof Menu>,
+    ref: Ref<HTMLDivElement>
   ) => <Menu {...props} ref={ref} />
 );

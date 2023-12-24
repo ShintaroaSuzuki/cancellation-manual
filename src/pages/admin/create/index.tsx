@@ -15,6 +15,7 @@ import {
   Text as SlateText,
 } from "slate";
 import { withHistory } from "slate-history";
+import { cn } from "@/utils";
 
 import { Button, Icon, Toolbar, IconMap } from "../components";
 
@@ -23,6 +24,7 @@ const HOTKEYS = {
   "mod+i": "italic",
   "mod+u": "underline",
   "mod+`": "code",
+  "mod+shift+~": "strikethrough",
 };
 
 const LIST_TYPES = ["numbered-list", "bulleted-list"];
@@ -45,9 +47,11 @@ const RichTextExample = () => {
         <MarkButton format="bold" iconName="format_bold" />
         <MarkButton format="italic" iconName="format_italic" />
         <MarkButton format="underline" iconName="format_underlined" />
+        <MarkButton format="strikethrough" iconName="format_strikethrough" />
         <MarkButton format="code" iconName="code" />
         <BlockButton format="heading-one" iconName="looks_one" />
         <BlockButton format="heading-two" iconName="looks_two" />
+        <BlockButton format="heading-three" iconName="looks3" />
         <BlockButton format="block-quote" iconName="format_quote" />
         <BlockButton format="numbered-list" iconName="format_list_numbered" />
         <BlockButton format="bulleted-list" iconName="format_list_bulleted" />
@@ -62,7 +66,7 @@ const RichTextExample = () => {
         placeholder="Enter some rich text…"
         spellCheck={false} // true にするとスペスミスで破線が引かれる
         autoFocus={true}
-        className="prose prose-code:before:hidden prose-code:after:hidden prose-code:bg-slate-100 prose-code:p-1"
+        className="prose prose-code:before:hidden prose-code:after:hidden prose-code:bg-slate-100 prose-code:p-1 m-8 outline-none"
         onKeyDown={(event) => {
           for (const hotkey in HOTKEYS) {
             if (isHotkey(hotkey, event as any)) {
@@ -169,47 +173,49 @@ const Element = ({
   children: ReactNode;
   element: SlateElement;
 }) => {
-  const style = { textAlign: element.align };
+  const defaultStyle = `text-${element.align}`;
   switch (element.type) {
     case "block-quote":
       return (
-        <blockquote style={style} {...attributes}>
+        <blockquote className={cn(defaultStyle)} {...attributes}>
           {children}
         </blockquote>
       );
     case "bulleted-list":
       return (
-        <ul style={style} {...attributes}>
+        <ul className={cn(defaultStyle)} {...attributes}>
           {children}
         </ul>
       );
     case "heading-one":
       return (
-        <h1 style={style} {...attributes}>
+        <h1 className={cn(defaultStyle)} {...attributes}>
           {children}
         </h1>
       );
     case "heading-two":
       return (
-        <h2 style={style} {...attributes}>
+        <h2 className={cn(defaultStyle)} {...attributes}>
           {children}
         </h2>
       );
+    case "heading-three":
+      return <h3 {...attributes}>{children}</h3>;
     case "list-item":
       return (
-        <li style={style} {...attributes}>
+        <li className={cn(defaultStyle)} {...attributes}>
           {children}
         </li>
       );
     case "numbered-list":
       return (
-        <ol style={style} {...attributes}>
+        <ol className={cn(defaultStyle)} {...attributes}>
           {children}
         </ol>
       );
     default:
       return (
-        <p style={style} {...attributes}>
+        <p className={cn(defaultStyle)} {...attributes}>
           {children}
         </p>
       );
@@ -239,6 +245,10 @@ const Leaf = ({
 
   if (leaf.underline) {
     children = <u>{children}</u>;
+  }
+
+  if (leaf.strikethrough) {
+    children = <s>{children}</s>;
   }
 
   return <span {...attributes}>{children}</span>;

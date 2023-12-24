@@ -4,8 +4,9 @@ import React, {
   ComponentPropsWithRef,
   ReactNode,
 } from "react";
-import isHotkey from "is-hotkey";
-import { Editable, withReact, useSlate, Slate } from "slate-react";
+import isHotkey, { isKeyHotkey } from "is-hotkey";
+import isUrl from "is-url";
+import { Editable, withReact, useSlate, Slate, useSelected } from "slate-react";
 import {
   Editor,
   Transforms,
@@ -13,9 +14,11 @@ import {
   Descendant,
   Element as SlateElement,
   Text as SlateText,
+  Range,
 } from "slate";
 import { withHistory } from "slate-history";
 import { cn } from "@/utils";
+import { LinkElement } from "@/pages/admin/types";
 
 import { Button, Icon, Toolbar, IconMap } from "../components";
 
@@ -39,7 +42,10 @@ const RichTextExample = () => {
     (props: ComponentPropsWithRef<typeof Leaf>) => <Leaf {...props} />,
     []
   );
-  const editor = useMemo(() => withHistory(withReact(createEditor())), []);
+  const editor = useMemo(
+    () => withInlines(withHistory(withReact(createEditor()))),
+    []
+  );
 
   return (
     <Slate editor={editor} initialValue={initialValue}>
@@ -49,6 +55,8 @@ const RichTextExample = () => {
         <MarkButton format="underline" iconName="format_underlined" />
         <MarkButton format="strikethrough" iconName="format_strikethrough" />
         <MarkButton format="code" iconName="code" />
+        <AddLinkButton />
+        <RemoveLinkButton />
         <BlockButton format="heading-one" iconName="looks_one" />
         <BlockButton format="heading-two" iconName="looks_two" />
         <BlockButton format="heading-three" iconName="looks3" />
@@ -73,6 +81,26 @@ const RichTextExample = () => {
               event.preventDefault();
               const mark = HOTKEYS[hotkey as keyof typeof HOTKEYS];
               toggleMark(editor, mark as Exclude<keyof SlateText, "text">);
+            }
+          }
+          const { selection } = editor;
+          // Default left/right behavior is unit:'character'.
+          // This fails to distinguish between two cursor positions, such as
+          // <inline>foo<cursor/></inline> vs <inline>foo</inline><cursor/>.
+          // Here we modify the behavior to unit:'offset'.
+          // This lets the user step into and out of the inline without stepping over characters.
+          // You may wish to customize this further to only use unit:'offset' in specific cases.
+          if (selection && Range.isCollapsed(selection)) {
+            const { nativeEvent } = event;
+            if (isKeyHotkey("left", nativeEvent)) {
+              event.preventDefault();
+              Transforms.move(editor, { unit: "offset", reverse: true });
+              return;
+            }
+            if (isKeyHotkey("right", nativeEvent)) {
+              event.preventDefault();
+              Transforms.move(editor, { unit: "offset" });
+              return;
             }
           }
         }}
@@ -213,6 +241,12 @@ const Element = ({
           {children}
         </ol>
       );
+    case "link":
+      return (
+        <LinkComponent {...attributes} element={element}>
+          {children}
+        </LinkComponent>
+      );
     default:
       return (
         <p className={cn(defaultStyle)} {...attributes}>
@@ -296,6 +330,142 @@ const MarkButton = ({
       }}
     >
       <Icon iconName={iconName} />
+    </Button>
+  );
+};
+
+const withInlines = (editor: Editor) => {
+  const { insertData, insertText, isInline, isSelectable } = editor;
+
+  editor.isInline = (element: SlateElement) =>
+    ["link", "button", "badge"].includes(element.type) || isInline(element);
+
+  editor.isSelectable = (element) => isSelectable(element);
+
+  editor.insertText = (text) => {
+    if (text && isUrl(text)) {
+      wrapLink(editor, text);
+    } else {
+      insertText(text);
+    }
+  };
+
+  editor.insertData = (data) => {
+    const text = data.getData("text/plain");
+
+    if (text && isUrl(text)) {
+      wrapLink(editor, text);
+    } else {
+      insertData(data);
+    }
+  };
+
+  return editor;
+};
+
+const insertLink = (editor: Editor, url: string) => {
+  if (editor.selection) {
+    wrapLink(editor, url);
+  }
+};
+
+const isLinkActive = (editor: Editor) => {
+  const [link] = Editor.nodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) && SlateElement.isElement(n) && n.type === "link",
+  });
+  return !!link;
+};
+
+const unwrapLink = (editor: Editor) => {
+  Transforms.unwrapNodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) && SlateElement.isElement(n) && n.type === "link",
+  });
+};
+
+const wrapLink = (editor: Editor, url: string) => {
+  if (isLinkActive(editor)) {
+    unwrapLink(editor);
+  }
+
+  const { selection } = editor;
+  const isCollapsed = selection && Range.isCollapsed(selection);
+  const link: LinkElement = {
+    type: "link",
+    url,
+    children: isCollapsed ? [{ text: url }] : [],
+  };
+
+  if (isCollapsed) {
+    Transforms.insertNodes(editor, link);
+  } else {
+    Transforms.wrapNodes(editor, link, { split: true });
+    Transforms.collapse(editor, { edge: "end" });
+  }
+};
+
+// Put this at the start and end of an inline component to work around this Chromium bug:
+// https://bugs.chromium.org/p/chromium/issues/detail?id=1249405
+const InlineChromiumBugfix = () => (
+  <span contentEditable={false} className="text-[0px]">
+    {String.fromCodePoint(160) /* Non-breaking space */}
+  </span>
+);
+
+const LinkComponent = ({
+  attributes,
+  children,
+  element,
+}: {
+  attributes: any;
+  children: ReactNode;
+  element: LinkElement;
+}) => {
+  const selected = useSelected();
+  return (
+    <a
+      {...attributes}
+      href={element.url}
+      className={cn(selected && "bg-slate-200", "rounded-sm", "text-blue-600")}
+    >
+      <InlineChromiumBugfix />
+      {children}
+      <InlineChromiumBugfix />
+    </a>
+  );
+};
+
+const AddLinkButton = () => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isLinkActive(editor)}
+      onMouseDown={(event: React.MouseEvent) => {
+        event.preventDefault();
+        const url = window.prompt("Enter the URL of the link:");
+        if (!url) return;
+        insertLink(editor, url);
+      }}
+    >
+      <Icon iconName="link" />
+    </Button>
+  );
+};
+
+const RemoveLinkButton = () => {
+  const editor = useSlate();
+
+  return (
+    <Button
+      active={isLinkActive(editor)}
+      onMouseDown={(_event: React.MouseEvent) => {
+        if (isLinkActive(editor)) {
+          unwrapLink(editor);
+        }
+      }}
+    >
+      <Icon iconName="link_off" />
     </Button>
   );
 };

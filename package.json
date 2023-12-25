@@ -21,6 +21,7 @@
     "next": "^12",
     "react": "^18",
     "react-dom": "^18",
+    "react-lite-youtube-embed": "^2.4.0",
     "slate": "^0.101.5",
     "slate-history": "^0.100.0",
     "slate-react": "^0.101.5"

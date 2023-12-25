@@ -56,6 +56,12 @@ export type ImageElement = {
   align?: Align;
   children: CustomText[];
 };
+export type YoutubeElement = {
+  type: "youtube";
+  videoId: string;
+  align?: Align;
+  children: CustomText[];
+};
 
 type FormattedText = {
   text: string;
@@ -77,7 +83,8 @@ type CustomElement =
   | ListItemElement
   | BlockQuoteElement
   | LinkElement
-  | ImageElement;
+  | ImageElement
+  | YoutubeElement;
 type CustomText = FormattedText;
 
 declare module "slate" {

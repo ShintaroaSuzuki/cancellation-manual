@@ -31,6 +31,8 @@ import { cn } from "@/utils";
 import { LinkElement, ImageElement } from "@/pages/admin/types";
 
 import { Button, Icon, Toolbar, IconMap } from "../components";
+import LiteYouTubeEmbed from "react-lite-youtube-embed";
+import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 
 const HOTKEYS = {
   "mod+b": "bold",
@@ -53,70 +55,96 @@ const RichTextExample = () => {
     []
   );
   const editor = useMemo(
-    () => withImages(withInlines(withHistory(withReact(createEditor())))),
+    () =>
+      withYoutube(
+        withImages(withInlines(withHistory(withReact(createEditor()))))
+      ),
     []
   );
 
   return (
-    <Slate editor={editor} initialValue={initialValue}>
-      <Toolbar>
-        <MarkButton format="bold" iconName="format_bold" />
-        <MarkButton format="italic" iconName="format_italic" />
-        <MarkButton format="underline" iconName="format_underlined" />
-        <MarkButton format="strikethrough" iconName="format_strikethrough" />
-        <MarkButton format="code" iconName="code" />
-        <AddLinkButton />
-        <RemoveLinkButton />
-        <InsertImageButton />
-        <BlockButton format="heading-one" iconName="looks_one" />
-        <BlockButton format="heading-two" iconName="looks_two" />
-        <BlockButton format="heading-three" iconName="looks3" />
-        <BlockButton format="block-quote" iconName="format_quote" />
-        <BlockButton format="numbered-list" iconName="format_list_numbered" />
-        <BlockButton format="bulleted-list" iconName="format_list_bulleted" />
-        <BlockButton format="left" iconName="format_align_left" />
-        <BlockButton format="center" iconName="format_align_center" />
-        <BlockButton format="right" iconName="format_align_right" />
-        <BlockButton format="justify" iconName="format_align_justify" />
-      </Toolbar>
-      <Editable
-        renderElement={renderElement}
-        renderLeaf={renderLeaf}
-        placeholder="Enter some rich text…"
-        spellCheck={false} // true にするとスペスミスで破線が引かれる
-        autoFocus={true}
-        className="prose prose-code:before:hidden prose-code:after:hidden prose-code:bg-slate-100 prose-code:p-1 m-8 outline-none"
-        onKeyDown={(event) => {
-          for (const hotkey in HOTKEYS) {
-            if (isHotkey(hotkey, event as any)) {
+    <div className="w-full h-full flex flex-col items-center p-8">
+      <Slate editor={editor} initialValue={initialValue}>
+        <Toolbar className="inline-flex justify-center items-center h-12 px-4 drop-shadow bg-slate-100 fixed bottom-8 right-8 gap-x-2">
+          <MarkButton format="bold" iconName="format_bold" />
+          <MarkButton format="italic" iconName="format_italic" />
+          <MarkButton format="underline" iconName="format_underlined" />
+          <MarkButton format="strikethrough" iconName="format_strikethrough" />
+          <MarkButton format="code" iconName="code" />
+          <AddLinkButton />
+          <RemoveLinkButton />
+          <InsertImageButton />
+          <BlockButton format="heading-one" iconName="looks_one" />
+          <BlockButton format="heading-two" iconName="looks_two" />
+          <BlockButton format="heading-three" iconName="looks3" />
+          <BlockButton format="block-quote" iconName="format_quote" />
+          <BlockButton format="numbered-list" iconName="format_list_numbered" />
+          <BlockButton format="bulleted-list" iconName="format_list_bulleted" />
+          <BlockButton format="left" iconName="format_align_left" />
+          <BlockButton format="center" iconName="format_align_center" />
+          <BlockButton format="right" iconName="format_align_right" />
+          <BlockButton format="justify" iconName="format_align_justify" />
+        </Toolbar>
+        <Editable
+          renderElement={renderElement}
+          renderLeaf={renderLeaf}
+          placeholder="解約マニュアルを作成してください"
+          spellCheck={false} // true にするとスペスミスで破線が引かれる
+          autoFocus={true}
+          className="prose prose-code:before:hidden prose-code:after:hidden prose-code:bg-slate-200 prose-code:p-1 outline-none w-full"
+          onPaste={(event) => {
+            const pastedText = event.clipboardData?.getData("text")?.trim();
+            const youtubeRegex =
+              /^(?:(?:https?:)?\/\/)?(?:(?:www|m)\.)?(?:(?:youtube\.com|youtu.be))(?:\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(?:\S+)?$/;
+            const matches = pastedText.match(youtubeRegex);
+            if (matches != null) {
+              // the first regex match will contain the entire url,
+              // the second will contain the first capture group which is our video id
+              const [_, videoId] = matches;
               event.preventDefault();
-              const mark = HOTKEYS[hotkey as keyof typeof HOTKEYS];
-              toggleMark(editor, mark as Exclude<keyof SlateText, "text">);
+              Transforms.insertNodes(editor, {
+                type: "youtube",
+                videoId,
+                children: [
+                  {
+                    text: "",
+                  },
+                ],
+              });
             }
-          }
-          const { selection } = editor;
-          // Default left/right behavior is unit:'character'.
-          // This fails to distinguish between two cursor positions, such as
-          // <inline>foo<cursor/></inline> vs <inline>foo</inline><cursor/>.
-          // Here we modify the behavior to unit:'offset'.
-          // This lets the user step into and out of the inline without stepping over characters.
-          // You may wish to customize this further to only use unit:'offset' in specific cases.
-          if (selection && Range.isCollapsed(selection)) {
-            const { nativeEvent } = event;
-            if (isKeyHotkey("left", nativeEvent)) {
-              event.preventDefault();
-              Transforms.move(editor, { unit: "offset", reverse: true });
-              return;
+          }}
+          onKeyDown={(event) => {
+            for (const hotkey in HOTKEYS) {
+              if (isHotkey(hotkey, event as any)) {
+                event.preventDefault();
+                const mark = HOTKEYS[hotkey as keyof typeof HOTKEYS];
+                toggleMark(editor, mark as Exclude<keyof SlateText, "text">);
+              }
             }
-            if (isKeyHotkey("right", nativeEvent)) {
-              event.preventDefault();
-              Transforms.move(editor, { unit: "offset" });
-              return;
+            const { selection } = editor;
+            // Default left/right behavior is unit:'character'.
+            // This fails to distinguish between two cursor positions, such as
+            // <inline>foo<cursor/></inline> vs <inline>foo</inline><cursor/>.
+            // Here we modify the behavior to unit:'offset'.
+            // This lets the user step into and out of the inline without stepping over characters.
+            // You may wish to customize this further to only use unit:'offset' in specific cases.
+            if (selection && Range.isCollapsed(selection)) {
+              const { nativeEvent } = event;
+              if (isKeyHotkey("left", nativeEvent)) {
+                event.preventDefault();
+                Transforms.move(editor, { unit: "offset", reverse: true });
+                return;
+              }
+              if (isKeyHotkey("right", nativeEvent)) {
+                event.preventDefault();
+                Transforms.move(editor, { unit: "offset" });
+                return;
+              }
             }
-          }
-        }}
-      />
-    </Slate>
+          }}
+        />
+      </Slate>
+    </div>
   );
 };
 
@@ -263,6 +291,13 @@ const Element = ({
         <Image {...attributes} element={element}>
           {children}
         </Image>
+      );
+    case "youtube":
+      return (
+        <div>
+          <LiteYouTubeEmbed id={element.videoId} title="YouTube Embed" />
+          {children}
+        </div>
       );
     default:
       return (
@@ -550,7 +585,7 @@ const Image = ({
           active
           onClick={() => Transforms.removeNodes(editor, { at: path })}
           className={cn(
-            "absolute bg-white t-4 l-4",
+            "absolute bg-white top-4 left-4 text-red-500",
             focused ? "inline" : "hidden"
           )}
         >
@@ -586,6 +621,16 @@ const isImageUrl = (url: string) => {
   const ext = new URL(url).pathname.split(".").pop();
   if (ext === undefined) return false;
   return imageExtensions.includes(ext);
+};
+
+const withYoutube = (editor: Editor) => {
+  const { insertData, isVoid } = editor;
+
+  editor.isVoid = (element: SlateElement) => {
+    return element.type === "youtube" ? true : isVoid(element);
+  };
+
+  return editor;
 };
 
 const initialValue: Descendant[] = [

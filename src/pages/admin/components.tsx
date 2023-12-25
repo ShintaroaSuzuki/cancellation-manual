@@ -74,7 +74,7 @@ export const Menu = React.forwardRef(
   (
     { className, ...props }: ComponentPropsWithoutRef<"div">,
     ref: Ref<HTMLDivElement>
-  ) => <div {...props} data-test-id="menu" ref={ref} />
+  ) => <div {...props} className={className} data-test-id="menu" ref={ref} />
 );
 Menu.displayName = "Menu";
 
@@ -82,6 +82,6 @@ export const Toolbar = React.forwardRef(
   (
     { className, ...props }: ComponentPropsWithoutRef<typeof Menu>,
     ref: Ref<HTMLDivElement>
-  ) => <Menu {...props} ref={ref} />
+  ) => <Menu {...props} className={cn(className)} ref={ref} />
 );
 Toolbar.displayName = "Toolbar";

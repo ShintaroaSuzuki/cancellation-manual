@@ -1,6 +1,8 @@
 import React, {
   useCallback,
   useMemo,
+  useRef,
+  Ref,
   ComponentPropsWithRef,
   ReactNode,
 } from "react";
@@ -454,28 +456,39 @@ const InlineChromiumBugfix = () => (
   </span>
 );
 
-const LinkComponent = ({
-  attributes,
-  children,
-  element,
-}: {
-  attributes: any;
-  children: ReactNode;
-  element: LinkElement;
-}) => {
-  const selected = useSelected();
-  return (
-    <a
-      {...attributes}
-      href={element.url}
-      className={cn(selected && "bg-slate-200", "rounded-sm", "text-blue-600")}
-    >
-      <InlineChromiumBugfix />
-      {children}
-      <InlineChromiumBugfix />
-    </a>
-  );
-};
+const LinkComponent = React.forwardRef(
+  (
+    {
+      attributes,
+      children,
+      element,
+    }: {
+      attributes: any;
+      children: ReactNode;
+      element: LinkElement;
+    },
+    ref: Ref<HTMLLinkElement>
+  ) => {
+    const selected = useSelected();
+    return (
+      <a
+        {...attributes}
+        href={element.url}
+        ref={ref}
+        className={cn(
+          selected && "bg-slate-200",
+          "rounded-sm",
+          "text-blue-600"
+        )}
+      >
+        <InlineChromiumBugfix />
+        {children}
+        <InlineChromiumBugfix />
+      </a>
+    );
+  }
+);
+LinkComponent.displayName = "LinkComponent";
 
 const AddLinkButton = () => {
   const editor = useSlate();
@@ -552,55 +565,102 @@ const insertImage = (editor: Editor, url: string) => {
   Transforms.insertNodes(editor, image);
 };
 
-const Image = ({
-  attributes,
-  children,
-  element,
-}: {
-  attributes: any;
-  children: ReactNode;
-  element: ImageElement;
-}) => {
-  const editor = useSlateStatic();
-  const path = ReactEditor.findPath(editor, element);
+const Image = React.forwardRef(
+  (
+    {
+      attributes,
+      children,
+      element,
+    }: {
+      attributes: any;
+      children: ReactNode;
+      element: ImageElement;
+    },
+    ref: Ref<HTMLDivElement>
+  ) => {
+    const editor = useSlateStatic();
+    const path = ReactEditor.findPath(editor, element);
 
-  const focused = useFocused();
-  return (
-    <div {...attributes}>
-      {children}
-      <div contentEditable={false} className="relative">
-        <img src={element.url} className={cn("block max-w-full max-h-80")} />
-        <Button
-          active
-          onClick={() => Transforms.removeNodes(editor, { at: path })}
-          className={cn(
-            "absolute bg-white top-4 left-4 text-red-500",
-            focused ? "inline" : "hidden"
-          )}
-        >
-          <Icon iconName="delete" />
-        </Button>
+    const selected = useSelected();
+    const focused = useFocused();
+    return (
+      <div {...attributes}>
+        <div contentEditable={false} className="relative">
+          <img
+            src={element.url}
+            className={cn(
+              "block max-w-full max-h-80",
+              selected && focused && "outline outline-4 outline-blue-500"
+            )}
+          />
+          <Button
+            active
+            onClick={() => Transforms.removeNodes(editor, { at: path })}
+            className={cn(
+              "absolute bg-white top-4 left-4 text-red-500 z-20",
+              selected && focused ? "inline" : "hidden"
+            )}
+          >
+            <Icon iconName="delete" />
+          </Button>
+          {/* This is a workaround for a Chromium bug where the image is not selectable */}
+          <div
+            ref={ref}
+            className={cn(
+              "absolute top-0 left-0 w-full h-full z-10",
+              selected && "hidden"
+            )}
+          >
+            {children}
+          </div>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+);
+Image.displayName = "Image";
 
 const InsertImageButton = () => {
   const editor = useSlateStatic();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("選択されたファイルは画像ではありません");
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const url = reader.result as string;
+      insertImage(editor, url);
+    };
+  };
+
+  const handleClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
-    <Button
-      onMouseDown={(event) => {
-        event.preventDefault();
-        const url = window.prompt("Enter the URL of the image:");
-        if (url && !isImageUrl(url)) {
-          alert("URL is not an image");
-          return;
-        }
-        url && insertImage(editor, url);
-      }}
-    >
-      <Icon iconName="image" />
-    </Button>
+    <div>
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <Button
+        onMouseDown={(event) => {
+          event.preventDefault();
+          handleClick();
+        }}
+      >
+        <Icon iconName="image" />
+      </Button>
+    </div>
   );
 };
 
@@ -622,38 +682,60 @@ const withYoutube = (editor: Editor) => {
   return editor;
 };
 
-const Youtube = ({
-  attributes,
-  children,
-  element,
-}: {
-  attributes: any;
-  children: ReactNode;
-  element: YoutubeElement;
-}) => {
-  const editor = useSlateStatic();
-  const path = ReactEditor.findPath(editor, element);
+const Youtube = React.forwardRef(
+  (
+    {
+      attributes,
+      children,
+      element,
+    }: {
+      attributes: any;
+      children: ReactNode;
+      element: YoutubeElement;
+    },
+    ref: Ref<HTMLDivElement>
+  ) => {
+    const editor = useSlateStatic();
+    const path = ReactEditor.findPath(editor, element);
 
-  const focused = useFocused();
-  return (
-    <div {...attributes}>
-      <div contentEditable={false} className="relative">
-        <LiteYouTubeEmbed id={element.videoId} title="YouTube Embed" />
-        <Button
-          active
-          onClick={() => Transforms.removeNodes(editor, { at: path })}
+    const selected = useSelected();
+    const focused = useFocused();
+    return (
+      <div {...attributes}>
+        <div
+          contentEditable={false}
           className={cn(
-            "absolute bg-white top-4 left-4 text-red-500",
-            focused ? "inline" : "hidden"
+            "relative",
+            selected && focused && "outline outline-4 outline-blue-500"
           )}
         >
-          <Icon iconName="delete" />
-        </Button>
-        {children}
+          <LiteYouTubeEmbed id={element.videoId} title="YouTube Embed" />
+          <Button
+            active
+            onClick={() => Transforms.removeNodes(editor, { at: path })}
+            className={cn(
+              "absolute bg-white top-4 left-4 text-red-500 z-20",
+              selected && focused ? "inline" : "hidden"
+            )}
+          >
+            <Icon iconName="delete" />
+          </Button>
+          {/* This is a workaround for a Chromium bug where the image is not selectable */}
+          <div
+            ref={ref}
+            className={cn(
+              "absolute top-0 left-0 w-full h-full z-10",
+              selected && "hidden"
+            )}
+          >
+            {children}
+          </div>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+);
+Youtube.displayName = "Youtube";
 
 const InsertYoutubeButton = () => {
   const editor = useSlateStatic();

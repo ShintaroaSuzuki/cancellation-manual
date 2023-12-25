@@ -28,7 +28,7 @@ import {
 } from "slate";
 import { withHistory } from "slate-history";
 import { cn } from "@/utils";
-import { LinkElement, ImageElement } from "@/pages/admin/types";
+import { LinkElement, ImageElement, YoutubeElement } from "@/pages/admin/types";
 
 import { Button, Icon, Toolbar, IconMap } from "../components";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
@@ -74,6 +74,7 @@ const RichTextExample = () => {
           <AddLinkButton />
           <RemoveLinkButton />
           <InsertImageButton />
+          <InsertYoutubeButton />
           <BlockButton format="heading-one" iconName="looks_one" />
           <BlockButton format="heading-two" iconName="looks_two" />
           <BlockButton format="heading-three" iconName="looks3" />
@@ -94,23 +95,12 @@ const RichTextExample = () => {
           className="prose prose-code:before:hidden prose-code:after:hidden prose-code:bg-slate-200 prose-code:p-1 outline-none w-full"
           onPaste={(event) => {
             const pastedText = event.clipboardData?.getData("text")?.trim();
-            const youtubeRegex =
-              /^(?:(?:https?:)?\/\/)?(?:(?:www|m)\.)?(?:(?:youtube\.com|youtu.be))(?:\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(?:\S+)?$/;
-            const matches = pastedText.match(youtubeRegex);
-            if (matches != null) {
+            const videoId = extractYoutubeVideoId(pastedText);
+            if (videoId != null) {
               // the first regex match will contain the entire url,
               // the second will contain the first capture group which is our video id
-              const [_, videoId] = matches;
               event.preventDefault();
-              Transforms.insertNodes(editor, {
-                type: "youtube",
-                videoId,
-                children: [
-                  {
-                    text: "",
-                  },
-                ],
-              });
+              insertYoutube(editor, videoId);
             }
           }}
           onKeyDown={(event) => {
@@ -294,10 +284,9 @@ const Element = ({
       );
     case "youtube":
       return (
-        <div>
-          <LiteYouTubeEmbed id={element.videoId} title="YouTube Embed" />
+        <Youtube {...attributes} element={element}>
           {children}
-        </div>
+        </Youtube>
       );
     default:
       return (
@@ -631,6 +620,82 @@ const withYoutube = (editor: Editor) => {
   };
 
   return editor;
+};
+
+const Youtube = ({
+  attributes,
+  children,
+  element,
+}: {
+  attributes: any;
+  children: ReactNode;
+  element: YoutubeElement;
+}) => {
+  const editor = useSlateStatic();
+  const path = ReactEditor.findPath(editor, element);
+
+  const focused = useFocused();
+  return (
+    <div {...attributes}>
+      <div contentEditable={false} className="relative">
+        <LiteYouTubeEmbed id={element.videoId} title="YouTube Embed" />
+        <Button
+          active
+          onClick={() => Transforms.removeNodes(editor, { at: path })}
+          className={cn(
+            "absolute bg-white top-4 left-4 text-red-500",
+            focused ? "inline" : "hidden"
+          )}
+        >
+          <Icon iconName="delete" />
+        </Button>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const InsertYoutubeButton = () => {
+  const editor = useSlateStatic();
+  return (
+    <Button
+      onMouseDown={(event) => {
+        event.preventDefault();
+        const url = window.prompt("YouTube の動画リンクを入力してください");
+        const videoId = extractYoutubeVideoId(url);
+        if (url === null) return;
+        if (videoId === null) {
+          alert("YouTube の動画リンクではありません");
+          return;
+        }
+        insertYoutube(editor, videoId);
+      }}
+    >
+      <Icon iconName="youtube" />
+    </Button>
+  );
+};
+
+const extractYoutubeVideoId = (url: string | null) => {
+  if (url === null) return null;
+  const youtubeRegex =
+    /^(?:(?:https?:)?\/\/)?(?:(?:www|m)\.)?(?:(?:youtube\.com|youtu.be))(?:\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(?:\S+)?$/;
+  const matches = url.match(youtubeRegex);
+  if (matches === null) return null;
+  const [_, videoId] = matches;
+  return videoId;
+};
+
+const insertYoutube = (editor: Editor, videoId: string) => {
+  Transforms.insertNodes(editor, {
+    type: "youtube",
+    videoId,
+    children: [
+      {
+        text: "",
+      },
+    ],
+  });
 };
 
 const initialValue: Descendant[] = [

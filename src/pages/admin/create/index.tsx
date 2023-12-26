@@ -30,11 +30,14 @@ import {
 } from "slate";
 import { withHistory } from "slate-history";
 import { cn } from "@/utils";
-import { LinkElement, ImageElement, YoutubeElement } from "@/pages/admin/types";
+import { LinkElement, ImageElement, YoutubeElement } from "@/utils/admin/types";
 
-import { Button, Icon, Toolbar, IconMap } from "../components";
+import { Button, Icon, Toolbar, IconMap } from "@/components/admin";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
+
+const BACKEND_ENDPOINT = process.env.NEXT_PUBLIC_BACKEND_ENDPOINT;
+const IMAGE_HOST_URL = process.env.NEXT_PUBLIC_IMAGE_HOST_URL;
 
 const HOTKEYS = {
   "mod+b": "bold",
@@ -66,8 +69,20 @@ const RichTextExample = () => {
 
   return (
     <div className="w-full h-full flex flex-col items-center p-8">
-      <Slate editor={editor} initialValue={initialValue}>
-        <Toolbar className="inline-flex justify-center items-center h-12 px-4 drop-shadow bg-slate-100 fixed bottom-8 right-8 gap-x-2">
+      <Slate
+        editor={editor}
+        initialValue={initialValue}
+        onChange={(value) => {
+          const isAstChange = editor.operations.some(
+            (op) => "set_selection" !== op.type
+          );
+          if (isAstChange) {
+            const content = JSON.stringify(value);
+            console.log(content);
+          }
+        }}
+      >
+        <Toolbar className="inline-flex justify-center items-center h-12 px-4 drop-shadow bg-slate-100 fixed bottom-8 right-8 gap-x-2 z-30">
           <MarkButton format="bold" iconName="format_bold" />
           <MarkButton format="italic" iconName="format_italic" />
           <MarkButton format="underline" iconName="format_underlined" />
@@ -280,7 +295,7 @@ const Element = ({
       );
     case "image":
       return (
-        <Image {...attributes} element={element}>
+        <Image {...attributes} element={element} alt="image">
           {children}
         </Image>
       );
@@ -531,7 +546,7 @@ const withImages = (editor: Editor) => {
     return element.type === "image" ? true : isVoid(element);
   };
 
-  editor.insertData = (data) => {
+  editor.insertData = async (data) => {
     const text = data.getData("text/plain");
     const { files } = data;
 
@@ -541,16 +556,22 @@ const withImages = (editor: Editor) => {
         const [mime] = file.type.split("/");
 
         if (mime === "image") {
-          reader.addEventListener("load", () => {
-            const url = reader.result as string;
-            insertImage(editor, url);
-          });
-
-          reader.readAsDataURL(file);
+          const url = await uploadImage(file);
+          if (url === undefined) return;
+          insertImage(editor, url);
         }
       }
     } else if (isImageUrl(text)) {
-      insertImage(editor, text);
+      try {
+        const blob = await fetch(text).then((res) => res.blob());
+        const file = new File([blob], "image.png", { type: "image/png" });
+        const url = await uploadImage(file);
+        if (url === undefined) return;
+        insertImage(editor, url);
+      } catch {
+        alert("画像のアップロードに失敗しました");
+        return;
+      }
     } else {
       insertData(data);
     }
@@ -563,6 +584,28 @@ const insertImage = (editor: Editor, url: string) => {
   const text = { text: "" };
   const image: ImageElement = { type: "image", url, children: [text] };
   Transforms.insertNodes(editor, image);
+};
+
+const removeImage = async (
+  editor: Editor,
+  path: number[],
+  element: ImageElement
+) => {
+  const filepath = element.url.split("/").slice(-1)[0];
+  const res = await fetch(`${BACKEND_ENDPOINT}/images`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filepath,
+    }),
+  });
+  if (!res.ok) {
+    alert("画像の削除に失敗しました");
+    return;
+  }
+  Transforms.removeNodes(editor, { at: path });
 };
 
 const Image = React.forwardRef(
@@ -592,10 +635,11 @@ const Image = React.forwardRef(
               "block max-w-full max-h-80",
               selected && focused && "outline outline-4 outline-blue-500"
             )}
+            alt="image"
           />
           <Button
             active
-            onClick={() => Transforms.removeNodes(editor, { at: path })}
+            onClick={() => removeImage(editor, path, element)}
             className={cn(
               "absolute bg-white top-4 left-4 text-red-500 z-20",
               selected && focused ? "inline" : "hidden"
@@ -620,23 +664,41 @@ const Image = React.forwardRef(
 );
 Image.displayName = "Image";
 
+const uploadImage = async (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BACKEND_ENDPOINT}/images`, {
+    method: "PUT",
+    // multipart/form-data にしたい場合は、Content-Type を指定せずに、ブラウザに任せる必要がある
+    // headers: {
+    //   "Content-Type": "multipart/form-data",
+    // },
+    body: formData,
+  });
+  if (!res.ok) {
+    alert("画像のアップロードに失敗しました");
+    return;
+  }
+  const { filepath } = await res.json();
+  return `${IMAGE_HOST_URL}/${filepath}`;
+};
+
 const InsertImageButton = () => {
   const editor = useSlateStatic();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       alert("選択されたファイルは画像ではありません");
       return;
     }
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const url = reader.result as string;
-      insertImage(editor, url);
-    };
+    const url = await uploadImage(file);
+    if (url === undefined) return;
+    insertImage(editor, url);
   };
 
   const handleClick = () => {
